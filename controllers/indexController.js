@@ -5,9 +5,12 @@ const getIndex = async (req, res, next) => {
 };
 
 const postIndex = async (req, res, next) => {
-  const browser = await puppeteer.launch();
+  const { userInput } = req.body;
+
+  const browser = await puppeteer.launch({
+    headless: true,
+  });
   const page = await browser.newPage();
-  console.log("test");
 
   // Navigate the page to a URL
   await page.goto("https://developer.chrome.com/");
@@ -16,25 +19,36 @@ const postIndex = async (req, res, next) => {
   await page.setViewport({ width: 1080, height: 1024 });
 
   // Type into search box
-  await page.type(".devsite-search-field", "automate beyond recorder");
+  await page.type(".devsite-search-field", userInput);
 
   // Wait and click on first result
-  const searchResultSelector = ".devsite-result-item-link";
+  const searchNavResultSelector = ".devsite-result-item-link";
+  await page.waitForSelector(searchNavResultSelector);
+  await page.click(searchNavResultSelector);
+
+  // Wait for the search results to load and display
+  const searchResultSelector = ".gsc-results .gsc-webResult a.gs-title";
   await page.waitForSelector(searchResultSelector);
-  await page.click(searchResultSelector);
 
-  // Locate the full title with a unique string
-  const textSelector = await page.waitForSelector(
-    "text/Customize and automate"
-  );
-  const fullTitle = await textSelector?.evaluate((el) => el.textContent);
+  // Get the first search result's title and URL
+  const firstResult = await page.evaluate(() => {
+    const resultElement = document.querySelector(
+      ".gsc-results .gsc-webResult a.gs-title"
+    );
+    if (resultElement) {
+      return {
+        title: resultElement.textContent.trim(),
+        url: resultElement.href,
+      };
+    }
+    return null;
+  });
 
-  // Print the full title
-  console.log('The title of this blog post is "%s".', fullTitle);
+  console.log("firstResult", firstResult);
 
   await browser.close();
 
-  res.render("index", { title: fullTitle });
+  res.render("output", { title: firstResult.title, link: firstResult.url });
 };
 
 module.exports = { getIndex, postIndex };
